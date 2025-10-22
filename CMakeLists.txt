@@ -15,9 +15,10 @@ set(CMAKE_CXX_STANDARD 11)
 add_definitions(-g -O0 -ggdb -gdwarf -funwind-tables -rdynamic)
 add_definitions(-Wno-write-strings -Wno-return-type)
 
-set(OPENCV_LIBS opencv_core opencv_imgcodecs opencv_imgproc opencv_features2d opencv_flann opencv_highgui)
+set(OPENCV_LIBS opencv_core opencv_imgcodecs opencv_imgproc opencv_features2d opencv_flann opencv_highgui opencv_freetype)
 set(RKNN_LIBS easymedia rga rkaiq rknn_api)
 link_directories(include lib)
+link_directories(${PROJECT_SOURCE_DIR}/librtsp)
 	
 include_directories(${SYSROOT})
 include_directories(${SYSROOT}/rga)
@@ -36,5 +37,10 @@ include_directories(./include/3rdparty/rga/include)
 
 add_definitions(-DRKAIQ)
 
-add_executable(atk_yolov5_object_recognize atk_yolov5_object_recognize.cpp drm_func.c postprocess.cc rga_func.c)
-target_link_libraries(atk_yolov5_object_recognize ${OPENCV_LIBS} ${RKNN_LIBS} pthread dl)
+add_executable(main atk_yolov5_object_recognize.cpp )
+target_link_libraries(main ${OPENCV_LIBS} ${RKNN_LIBS} rtsp pthread dl     avformat
+avcodec
+avutil
+swscale
+swresample)
+

@@ -19,15 +19,21 @@
 #include "rga.h"
 #include "drm_func.h"
 #include "rga_func.h"
+#include <rga/im2d.h> 
 #include "rknn_api.h"
 #include "rkmedia_api.h"
-#include "postprocess.h"
+
+#include "rkmedia_venc.h"
 #include "sample_common.h"
 #include "opencv2/opencv.hpp"
+#include <opencv2/freetype.hpp>
+
 
 
 
 static bool quit = false;
+
+void switch_camera_settings(int mode);
 
 int rgb24_resize(unsigned char *input_rgb, unsigned char *output_rgb, int width,int height, int outwidth, int outheight);
 
@@ -36,5 +42,7 @@ static unsigned char *load_model(const char *filename, int *model_size);
 static void printRKNNTensor(rknn_tensor_attr *attr);
 
 void *rkmedia_rknn_thread(void *args);
+
+void *rkmedia_rknn_thread2(void *args);
 
 #endif
