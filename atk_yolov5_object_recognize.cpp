@@ -104,6 +104,14 @@ Marker::~Marker()
 {
 }
 
+double findyaw(vector<Point2f>&& corners)
+{
+  double sa = (norm(corners[0].x - corners[3].x) + norm(corners[2] - corners[1])) / 2.0;
+  double si1 = norm(corners[0].y - corners[1].y);
+  double si2 = norm(corners[3].y - corners[2].y);
+  double yaw = asin(sa/si1);
+  return si1 < si2 ? yaw : -yaw;
+}
 RK_U32 video_width = 1280;
 RK_U32 video_height = 720;
 RK_U32 shrunken_width = 640;
