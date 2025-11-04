@@ -19,24 +19,178 @@
 #include <unistd.h>
 #include <string>
 #include <iostream>
+#include <fstream>
 
 #include <deque>
 #include <chrono>
-#include <vector> // fix: required for std::vector
+#include <vector>
+#include <cmath>
+
+using namespace cv;
+using namespace std;
+
+// Camera calibration data structure
+struct CameraCalibration {
+  cv::Mat cameraMatrix;      // 3x3 intrinsic camera matrix
+  cv::Mat distCoeffs;        // Distortion coefficients
+  bool isCalibrated;
+  
+  CameraCalibration() : isCalibrated(false) {}
+  
+  // Load calibration from file
+  bool loadFromFile(const std::string& filename) {
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+      std::cerr << "Error: Cannot open calibration file: " << filename << std::endl;
+      return false;
+    }
+    
+    fs["camera_matrix"] >> cameraMatrix;
+    fs["distortion_coefficients"] >> distCoeffs;
+    fs.release();
+    
+    if (cameraMatrix.empty() || distCoeffs.empty()) {
+      std::cerr << "Error: Invalid calibration data in file" << std::endl;
+      return false;
+    }
+    
+    isCalibrated = true;
+    std::cout << "Calibration loaded successfully from: " << filename << std::endl;
+    return true;
+  }
+};
+
+// Global camera calibration
+static CameraCalibration g_camCalib;
+
+// Forward declarations
+class Marker;
+class Edge;
+class Graph;
+
+class Edge
+{
+public:
+  Edge(int marker_a_id, int marker_b_id, double dist,
+       double theta_ab, double theta_ba, double phi);
+  Edge(const Edge &) = default;
+  Edge &operator=(const Edge &) = default;
+  ~Edge();
+  
+  // Edge composition function M(E_ab, E_bc) -> E_ac
+  static Edge compose(const Edge& e_ab, const Edge& e_bc);
+  
+  int getMarkerA() const { return a_id; }
+  int getMarkerB() const { return b_id; }
+  double getDistance() const { return distance; }
+  double getThetaAB() const { return theta_ab; }
+  double getThetaBA() const { return theta_ba; }
+  double getPhi() const { return phi; }
+
+private:
+  int a_id, b_id;
+  double distance;
+  double theta_ab;
+  double theta_ba;
+  double phi;
+};
+
+Edge::Edge(int marker_a_id, int marker_b_id, double dist,
+           double theta_ab_val, double theta_ba_val, double phi_val)
+  : a_id(marker_a_id), b_id(marker_b_id), distance(dist),
+    theta_ab(theta_ab_val), theta_ba(theta_ba_val), phi(phi_val)
+{
+}
+
+Edge::~Edge()
+{
+}
+
+// Implementation of M function for edge composition (multi-hop navigation)
+// From paper: E_ac = M(E_ab, E_bc)
+Edge Edge::compose(const Edge& e_ab, const Edge& e_bc)
+{
+  // φ_ac = φ_ab + φ_bc
+  double phi_ac = e_ab.phi + e_bc.phi;
+  
+  // θ_ac = θ_ab + θ_bc - φ_bc
+  double theta_ac = e_ab.theta_ab + e_bc.theta_ab - e_bc.phi;
+  
+  // θ_ca = -(θ_ab + θ_bc - φ_bc)
+  double theta_ca = -theta_ac;
+  
+  // d_ac = √(d_ab² + d_bc² - 2·d_ab·d_bc·cos(φ_bc))
+  double d_ac = std::sqrt(
+    e_ab.distance * e_ab.distance + 
+    e_bc.distance * e_bc.distance - 
+    2.0 * e_ab.distance * e_bc.distance * std::cos(e_bc.phi)
+  );
+  
+  return Edge(e_ab.a_id, e_bc.b_id, d_ac, theta_ac, theta_ca, phi_ac);
+}
+
+class Marker
+{
+public:
+  Marker();
+  Marker(int marker_id, const cv::Point2f& pos);
+  void addEdge(const Edge& edge);
+  const std::vector<Edge>& getEdges() const { return edges; }
+  int getId() const { return id; }
+  cv::Point2f getPosition() const { return position; }
+  double getTheta() const { return theta; }
+  void setPosition(const cv::Point2f& pos) { position = pos; }
+  void setTheta(double t) { theta = t; }
+  
+  // Pose estimation data
+  cv::Vec3d rvec;  // Rotation vector from solvePnP
+  cv::Vec3d tvec;  // Translation vector from solvePnP
+  
+  Marker(const Marker &) = default;
+  Marker &operator=(const Marker &) = default;
+  ~Marker();
+
+private:
+  int id;
+  double theta;
+  cv::Point2f position;
+  std::vector<Edge> edges;
+};
+
+Marker::Marker() : id(0), theta(0.0), position(0, 0)
+{
+}
+
+Marker::Marker(int marker_id, const cv::Point2f& pos)
+  : id(marker_id), theta(0.0), position(pos)
+{
+}
+
+void Marker::addEdge(const Edge& edge)
+{
+  edges.push_back(edge);
+}
+
+Marker::~Marker()
+{
+}
 
 class Graph
 {
 public:
   Graph();
-  Graph(Graph &&) = default;
   Graph(const Graph &) = default;
-  Graph &operator=(Graph &&) = default;
   Graph &operator=(const Graph &) = default;
   ~Graph();
+  
+  void addMarker(const Marker& marker);
+  void addEdge(const Edge& edge);
+  Marker* getMarker(int id);
+  const std::unordered_map<int, Marker>& getMarkers() const { return markers; }
 
 private:
+  std::unordered_map<int, Marker> markers;  // O(1) lookup by ArUco ID
   std::vector<Edge> edges;
-
 };
 
 Graph::Graph()
@@ -47,71 +201,77 @@ Graph::~Graph()
 {
 }
 
-class Edge
+void Graph::addMarker(const Marker& marker)
 {
-public:
-  Edge(Marker marker_a, Marker marker_b, double dist,
-       double theta_ab, double theta_ba, double phi);
-  Edge(Edge &&) = default;
-  Edge(const Edge &) = default;
-  Edge &operator=(Edge &&) = default;
-  Edge &operator=(const Edge &) = default;
-  ~Edge();
+  markers[marker.getId()] = marker;
+}
 
-private:
-  Marker a,b;`
-  double distance;
-  double theta_ab;
-  double theta_ba;
-  double phi;
+void Graph::addEdge(const Edge& edge)
+{
+  edges.push_back(edge);
   
-};
-
-Edge::Edge()
-{
-
-}
-
-Edge::~Edge()
-{
-}
-
-class Marker
-{
-public:
-  Marker();
-  Marker(Marker &&) = default;
-  Marker(const Marker &) = default;
-  Marker &operator=(Marker &&) = default;
-  Marker &operator=(const Marker &) = default;
-  ~Marker();
-
-private:
-  int id;
-  double theta;
-  Point position;
-
+  // Add edge to both markers' adjacency lists
+  auto it_a = markers.find(edge.getMarkerA());
+  auto it_b = markers.find(edge.getMarkerB());
   
-};
-
-Marker::Marker()
-{
-  id = 0;
-  position = Point(0, 0);
+  if (it_a != markers.end()) {
+    it_a->second.addEdge(edge);
+  }
+  if (it_b != markers.end()) {
+    // Create reverse edge for marker B
+    Edge reverse(edge.getMarkerB(), edge.getMarkerA(), 
+                 edge.getDistance(), edge.getThetaBA(), 
+                 edge.getThetaAB(), -edge.getPhi());
+    it_b->second.addEdge(reverse);
+  }
 }
 
-Marker::~Marker()
+Marker* Graph::getMarker(int id)
 {
+  auto it = markers.find(id);
+  return (it != markers.end()) ? &(it->second) : nullptr;
 }
 
-double findyaw(vector<Point2f>&& corners)
+// Improved yaw calculation from paper equations
+double findyaw(const std::vector<cv::Point2f>& corners)
 {
-  double sa = (norm(corners[0].x - corners[3].x) + norm(corners[2] - corners[1])) / 2.0;
-  double si1 = norm(corners[0].y - corners[1].y);
-  double si2 = norm(corners[3].y - corners[2].y);
-  double yaw = asin(sa/si1);
-  return si1 < si2 ? yaw : -yaw;
+  // sa = average of top and bottom edge lengths
+  double top_edge = cv::norm(corners[0] - corners[1]);
+  double bottom_edge = cv::norm(corners[3] - corners[2]);
+  double sa = (top_edge + bottom_edge) / 2.0;
+  
+  // si1 and si2 = left and right edge lengths
+  double si1 = cv::norm(corners[0] - corners[3]);
+  double si2 = cv::norm(corners[1] - corners[2]);
+  
+  // yaw = arcsin(sa / si)
+  double yaw = std::asin(sa / si1);
+  
+  // Determine sign based on which side is shorter
+  return (si1 < si2) ? yaw : -yaw;
 }
+
+// Calculate spatial relationship between two markers
+Edge calculateEdge(const Marker& marker_a, const Marker& marker_b)
+{
+  cv::Point2f pos_a = marker_a.getPosition();
+  cv::Point2f pos_b = marker_b.getPosition();
+  
+  // Distance: Euclidean distance
+  double d_ab = cv::norm(pos_b - pos_a);
+  
+  // Phase difference: φ = arctan(Δy/Δx)
+  double delta_x = pos_b.x - pos_a.x;
+  double delta_y = pos_b.y - pos_a.y;
+  double phi_ab = std::atan2(delta_y, delta_x);
+  
+  // Angular differences (simplified - would use actual rotation data)
+  double theta_ab = marker_a.getTheta();
+  double theta_ba = marker_b.getTheta();
+  
+  return Edge(marker_a.getId(), marker_b.getId(), d_ab, theta_ab, theta_ba, phi_ab);
+}
+
 RK_U32 video_width = 1280;
 RK_U32 video_height = 720;
 RK_U32 shrunken_width = 640;
@@ -130,7 +290,7 @@ struct FpsStats {
   double fpsStart = nowMs();
   double avgFps = 0.0;
   double fps1sec = 0.0;
-  double updateAvgMs(double frameMs) { avgMs = 0.98 * avgMs + 0.02 * frameMs; return avgMs; }
+    double updateAvgMs(double frameMs) { avgMs = 0.98 * avgMs + 0.02 * frameMs; return avgMs; }
   double tickFps() {
     double n = nowMs();
     if (n - fpsStart > 1000.0) { fpsStart = n; avgFps = 0.7 * avgFps + 0.3 * fps1sec; fps1sec = 0.0; }
@@ -142,7 +302,28 @@ struct FpsStats {
 void *rkmedia_rknn_thread(void *args)
 {
   FpsStats stats;
+  Graph markerGraph;  // Graph to store all detected markers
+  
+  // Load camera calibration
+  if (!g_camCalib.loadFromFile("camera_calibration.yml")) {
+    std::cerr << "Warning: Running without camera calibration" << std::endl;
+    std::cerr << "Run charuco_calibration program first to create calibration file" << std::endl;
+  }
+  
+  // Use only DICT_6X6_50
+  auto dict6x6_50 = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_50);
 
+  // Tune detection parameters
+  cv::Ptr<cv::aruco::DetectorParameters> detParams = cv::aruco::DetectorParameters::create();
+  detParams->adaptiveThreshWinSizeMin = 9;
+  detParams->adaptiveThreshWinSizeMax = 23;
+  detParams->adaptiveThreshWinSizeStep = 10;
+  detParams->minMarkerPerimeterRate = 0.01f;
+  detParams->maxMarkerPerimeterRate = 4.0f;
+  detParams->polygonalApproxAccuracyRate = 0.05;
+
+  // Remove CharUco board detection code - calibration is now pre-computed
+  
   while (!quit)
   {
     using namespace cv;
@@ -166,19 +347,6 @@ void *rkmedia_rknn_thread(void *args)
 
     rga_buffer_t src, vo_dst; // removed unused venc_dst
 
-    // Use only DICT_6X6_50
-    auto dict6x6_50 = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_50);
-    const char* dict6x6_50_name = "6X6_50"; (void)dict6x6_50_name;
-
-    // Tune detection parameters
-    cv::Ptr<cv::aruco::DetectorParameters> detParams = cv::aruco::DetectorParameters::create();
-    detParams->adaptiveThreshWinSizeMin = 9;
-    detParams->adaptiveThreshWinSizeMax = 23;
-    detParams->adaptiveThreshWinSizeStep = 10;
-    detParams->minMarkerPerimeterRate = 0.01f;
-    detParams->maxMarkerPerimeterRate = 4.0f;
-    detParams->polygonalApproxAccuracyRate = 0.05;
-
     // 源图像缓冲区
     src = wrapbuffer_fd(RK_MPI_MB_GetFD(mb), disp_width, disp_height, RK_FORMAT_RGB_888);
 
@@ -188,26 +356,17 @@ void *rkmedia_rknn_thread(void *args)
     MEDIA_BUFFER vo_mb = RK_MPI_MB_CreateImageBuffer(&vo_ImageInfo, RK_TRUE, 0);
     vo_dst = wrapbuffer_fd(RK_MPI_MB_GetFD(vo_mb), disp_width, disp_height, RK_FORMAT_RGB_888);
 
-    // Only allow IDs 3 and 7 with special names
-    static const std::unordered_map<int, std::string> kSpecialNames = {
-        {3, "Three's Company"},
-        {7, "Lucky Number Seven"}
-    };
 
     // Buckets
     std::vector<int> correctIds; correctIds.reserve(64);
     std::vector<std::vector<cv::Point2f>> correctCorners; correctCorners.reserve(64);
     std::vector<std::string> correctLabels; correctLabels.reserve(64);
 
-    std::vector<int> wrongIds; wrongIds.reserve(64);
-    std::vector<std::vector<cv::Point2f>> wrongCorners; wrongCorners.reserve(64);
-    std::vector<std::string> wrongLabels; wrongLabels.reserve(64);
-
-    std::vector<std::vector<cv::Point2f>> rejectedCorners; rejectedCorners.reserve(64);
 
     // Detect ArUco on the shrunken RGB frame
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
+    std::vector<std::vector<cv::Point2f>> rejectedCorners;
     cv::aruco::detectMarkers(shrunken, dict6x6_50, corners, ids, detParams, rejectedCorners);
 
     // Scale factor to project shrunken detections back to original image size
@@ -252,34 +411,6 @@ void *rkmedia_rknn_thread(void *args)
       }
     }
 
-    // Draw wrong IDs
-    if (!wrongIds.empty()) {
-      cv::aruco::drawDetectedMarkers(orig_img, wrongCorners, wrongIds, cv::Scalar(0, 0, 255));
-      for (size_t i = 0; i < wrongCorners.size(); ++i) {
-        const auto& pts = wrongCorners[i];
-        std::vector<cv::Point> poly; poly.reserve(pts.size());
-        for (const auto& p : pts) poly.push_back(p);
-        const cv::Point* ptsArr = poly.data();
-        int npts = static_cast<int>(poly.size());
-        cv::polylines(orig_img, &ptsArr, &npts, 1, true, cv::Scalar(0, 0, 255), 6, cv::LINE_AA);
-        cv::Point2f c(0,0); for (const auto& p : pts) c += p; c *= 0.25f;
-        cv::putText(orig_img, wrongLabels[i], c + cv::Point2f(-20, -10),
-                    cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
-      }
-    }
-
-    // Draw rejected candidate quads (scaled back to full-res)
-    if (!rejectedCorners.empty()) {
-      std::vector<std::vector<cv::Point2f>> rejectedScaled;
-      rejectedScaled.reserve(rejectedCorners.size());
-      for (const auto& rc : rejectedCorners) {
-        std::vector<cv::Point2f> sp;
-        sp.reserve(rc.size());
-        for (const auto& p : rc) sp.emplace_back(p.x * scaleX, p.y * scaleY);
-        rejectedScaled.emplace_back(std::move(sp));
-      }
-      cv::aruco::drawDetectedMarkers(orig_img, rejectedScaled, cv::noArray(), cv::Scalar(60, 60, 255));
-    }
 
     double dur = nowMs() - start;
     std::string statsText = cv::format("avg %.2f ms  fps %.1f  det %d",

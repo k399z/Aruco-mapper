@@ -44,3 +44,7 @@ avutil
 swscale
 swresample)
 
+# Calibration program
+add_executable(charuco_calibration charuco_calibration.cpp)
+target_link_libraries(charuco_calibration ${OpenCV_LIBS})
+
