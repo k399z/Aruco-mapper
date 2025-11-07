@@ -188,7 +188,7 @@ public:
   Marker* getMarker(int id);
   const std::unordered_map<int, Marker>& getMarkers() const { return markers; }
 
-private:
+private:   
   std::unordered_map<int, Marker> markers;  // O(1) lookup by ArUco ID
   std::vector<Edge> edges;
 };
@@ -375,6 +375,8 @@ void *rkmedia_rknn_thread(void *args)
 
     if (!ids.empty()) {
       for (size_t k = 0; k < ids.size(); ++k) {
+        //add the marker to the graph
+        markerGraph.addMarker(ids[k], corners[k]);
         // Scale corners back to full-res coordinates
         std::vector<cv::Point2f> scaledPts;
         scaledPts.reserve(corners[k].size());
