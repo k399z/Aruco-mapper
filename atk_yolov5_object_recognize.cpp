@@ -29,6 +29,20 @@
 using namespace cv;
 using namespace std;
 
+// Global quit flag
+static volatile bool quit = false;
+
+// Special marker names mapping
+static const std::unordered_map<int, std::string> kSpecialNames = {
+  {0, "Origin"},
+  {1, "Marker_1"},
+  {2, "Marker_2"},
+  {3, "Marker_3"},
+  {4, "Marker_4"},
+  {5, "Marker_5"}
+  // Add more marker IDs and names as needed
+};
+
 // Camera calibration data structure
 struct CameraCalibration {
   cv::Mat cameraMatrix;      // 3x3 intrinsic camera matrix
@@ -361,6 +375,9 @@ void *rkmedia_rknn_thread(void *args)
     std::vector<int> correctIds; correctIds.reserve(64);
     std::vector<std::vector<cv::Point2f>> correctCorners; correctCorners.reserve(64);
     std::vector<std::string> correctLabels; correctLabels.reserve(64);
+    std::vector<int> wrongIds; wrongIds.reserve(64);
+    std::vector<std::vector<cv::Point2f>> wrongCorners; wrongCorners.reserve(64);
+    std::vector<std::string> wrongLabels; wrongLabels.reserve(64);
 
 
     // Detect ArUco on the shrunken RGB frame
@@ -375,14 +392,23 @@ void *rkmedia_rknn_thread(void *args)
 
     if (!ids.empty()) {
       for (size_t k = 0; k < ids.size(); ++k) {
-        //add the marker to the graph
-        markerGraph.addMarker(ids[k], corners[k]);
         // Scale corners back to full-res coordinates
         std::vector<cv::Point2f> scaledPts;
         scaledPts.reserve(corners[k].size());
         for (const auto& p : corners[k]) {
           scaledPts.emplace_back(p.x * scaleX, p.y * scaleY);
         }
+
+        // Calculate center position for the marker
+        cv::Point2f center(0, 0);
+        for (const auto& pt : scaledPts) {
+          center += pt;
+        }
+        center *= (1.0f / scaledPts.size());
+
+        // Create and add marker to the graph
+        Marker marker(ids[k], center);
+        markerGraph.addMarker(marker);
 
         auto it = kSpecialNames.find(ids[k]);
         if (it == kSpecialNames.end()) {
