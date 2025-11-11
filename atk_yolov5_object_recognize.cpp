@@ -341,10 +341,13 @@ void *rkmedia_rknn_thread(void *args)
   while (!quit)
   {
     using namespace cv;
-    // 从 RGA 通道抓一帧；不阻塞太久，避免卡 pipeline
-    MEDIA_BUFFER mb = RK_MPI_SYS_GetMediaBuffer(RK_ID_RGA, 0, 50 /*ms*/);
-    if (!mb)
+    // 从 RGA 通道抓一帧；使用更长的超时时间以处理相机启动延迟
+    MEDIA_BUFFER mb = RK_MPI_SYS_GetMediaBuffer(RK_ID_RGA, 0, 1000 /*ms*/);
+    if (!mb) {
+      // Camera not ready yet, wait a bit
+      usleep(100000); // 100ms
       continue;
+    }
 
     double start = nowMs();
 
@@ -407,6 +410,7 @@ void *rkmedia_rknn_thread(void *args)
         center *= (1.0f / scaledPts.size());
 
         // Create and add marker to the graph
+        
         Marker marker(ids[k], center);
         markerGraph.addMarker(marker);
 
@@ -560,10 +564,28 @@ int main(int argc, char *argv[])
   //   return -1;
   // }
 
+  printf("%s initial finish\n", __func__);
+  
+  // Wait for camera to start streaming (give it 2 seconds)
+  printf("Waiting for camera to start streaming...\n");
+  sleep(2);
+  
+  // Verify camera is producing frames
+  printf("Testing camera frame capture...\n");
+  for (int i = 0; i < 5; i++) {
+    MEDIA_BUFFER test_mb = RK_MPI_SYS_GetMediaBuffer(RK_ID_RGA, 0, 1000);
+    if (test_mb) {
+      printf("Camera test frame %d received successfully\n", i + 1);
+      RK_MPI_MB_ReleaseBuffer(test_mb);
+      break;
+    } else {
+      printf("Camera test frame %d timeout, retrying...\n", i + 1);
+      sleep(1);
+    }
+  }
+  
   pthread_t rkmedia_rknn_tidp;
   pthread_create(&rkmedia_rknn_tidp, NULL, rkmedia_rknn_thread, NULL);
-
-  printf("%s initial finish\n", __func__);
 
   while (!quit)
   {

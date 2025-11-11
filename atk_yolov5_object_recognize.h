@@ -31,7 +31,6 @@
 
 
 
-static bool quit = false;
 
 void switch_camera_settings(int mode);
 

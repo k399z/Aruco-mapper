@@ -68,7 +68,7 @@ include_directories(./include/3rdparty/rga/include)
 add_definitions(-DRKAIQ)
 
 add_executable(main atk_yolov5_object_recognize.cpp )
-target_link_libraries(main ${OPENCV_LIBS} ${RKNN_LIBS} rtsp pthread dl     avformat
+target_link_libraries(main ${OPENCV_LIBS} ${RKNN_LIBS}  pthread dl     avformat
 avcodec
 avutil
 swscale
