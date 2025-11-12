@@ -67,7 +67,7 @@ include_directories(./include/3rdparty/rga/include)
 
 add_definitions(-DRKAIQ)
 
-add_executable(main atk_yolov5_object_recognize.cpp marker.cpp edge.cpp robot.cpp graph.cpp)
+add_executable(main main.cpp marker.cpp edge.cpp robot.cpp graph.cpp)
 target_link_libraries(main ${OPENCV_LIBS} ${RKNN_LIBS}  pthread dl     avformat
 avcodec
 avutil

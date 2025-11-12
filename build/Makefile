@@ -136,33 +136,6 @@ main/fast:
 	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/build
 .PHONY : main/fast
 
-atk_yolov5_object_recognize.o: atk_yolov5_object_recognize.cpp.o
-
-.PHONY : atk_yolov5_object_recognize.o
-
-# target to build an object file
-atk_yolov5_object_recognize.cpp.o:
-	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/atk_yolov5_object_recognize.cpp.o
-.PHONY : atk_yolov5_object_recognize.cpp.o
-
-atk_yolov5_object_recognize.i: atk_yolov5_object_recognize.cpp.i
-
-.PHONY : atk_yolov5_object_recognize.i
-
-# target to preprocess a source file
-atk_yolov5_object_recognize.cpp.i:
-	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/atk_yolov5_object_recognize.cpp.i
-.PHONY : atk_yolov5_object_recognize.cpp.i
-
-atk_yolov5_object_recognize.s: atk_yolov5_object_recognize.cpp.s
-
-.PHONY : atk_yolov5_object_recognize.s
-
-# target to generate assembly for a file
-atk_yolov5_object_recognize.cpp.s:
-	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/atk_yolov5_object_recognize.cpp.s
-.PHONY : atk_yolov5_object_recognize.cpp.s
-
 charuco_calibration.o: charuco_calibration.cpp.o
 
 .PHONY : charuco_calibration.o
@@ -244,6 +217,33 @@ graph.cpp.s:
 	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/graph.cpp.s
 .PHONY : graph.cpp.s
 
+main.o: main.cpp.o
+
+.PHONY : main.o
+
+# target to build an object file
+main.cpp.o:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/main.cpp.o
+.PHONY : main.cpp.o
+
+main.i: main.cpp.i
+
+.PHONY : main.i
+
+# target to preprocess a source file
+main.cpp.i:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/main.cpp.i
+.PHONY : main.cpp.i
+
+main.s: main.cpp.s
+
+.PHONY : main.s
+
+# target to generate assembly for a file
+main.cpp.s:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/main.cpp.s
+.PHONY : main.cpp.s
+
 marker.o: marker.cpp.o
 
 .PHONY : marker.o
@@ -308,9 +308,6 @@ help:
 	@echo "... edit_cache"
 	@echo "... charuco_calibration"
 	@echo "... main"
-	@echo "... atk_yolov5_object_recognize.o"
-	@echo "... atk_yolov5_object_recognize.i"
-	@echo "... atk_yolov5_object_recognize.s"
 	@echo "... charuco_calibration.o"
 	@echo "... charuco_calibration.i"
 	@echo "... charuco_calibration.s"
@@ -320,6 +317,9 @@ help:
 	@echo "... graph.o"
 	@echo "... graph.i"
 	@echo "... graph.s"
+	@echo "... main.o"
+	@echo "... main.i"
+	@echo "... main.s"
 	@echo "... marker.o"
 	@echo "... marker.i"
 	@echo "... marker.s"
