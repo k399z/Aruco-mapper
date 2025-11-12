@@ -1,3 +1,4 @@
 /home/clay/Aruco-mapper/build/CMakeFiles/rebuild_cache.dir
 /home/clay/Aruco-mapper/build/CMakeFiles/edit_cache.dir
+/home/clay/Aruco-mapper/build/CMakeFiles/charuco_calibration.dir
 /home/clay/Aruco-mapper/build/CMakeFiles/main.dir

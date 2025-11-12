@@ -111,6 +111,19 @@ depend:
 .PHONY : depend
 
 #=============================================================================
+# Target rules for targets named charuco_calibration
+
+# Build rule for target.
+charuco_calibration: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 charuco_calibration
+.PHONY : charuco_calibration
+
+# fast build rule for target.
+charuco_calibration/fast:
+	$(MAKE) -f CMakeFiles/charuco_calibration.dir/build.make CMakeFiles/charuco_calibration.dir/build
+.PHONY : charuco_calibration/fast
+
+#=============================================================================
 # Target rules for targets named main
 
 # Build rule for target.
@@ -150,6 +163,141 @@ atk_yolov5_object_recognize.cpp.s:
 	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/atk_yolov5_object_recognize.cpp.s
 .PHONY : atk_yolov5_object_recognize.cpp.s
 
+charuco_calibration.o: charuco_calibration.cpp.o
+
+.PHONY : charuco_calibration.o
+
+# target to build an object file
+charuco_calibration.cpp.o:
+	$(MAKE) -f CMakeFiles/charuco_calibration.dir/build.make CMakeFiles/charuco_calibration.dir/charuco_calibration.cpp.o
+.PHONY : charuco_calibration.cpp.o
+
+charuco_calibration.i: charuco_calibration.cpp.i
+
+.PHONY : charuco_calibration.i
+
+# target to preprocess a source file
+charuco_calibration.cpp.i:
+	$(MAKE) -f CMakeFiles/charuco_calibration.dir/build.make CMakeFiles/charuco_calibration.dir/charuco_calibration.cpp.i
+.PHONY : charuco_calibration.cpp.i
+
+charuco_calibration.s: charuco_calibration.cpp.s
+
+.PHONY : charuco_calibration.s
+
+# target to generate assembly for a file
+charuco_calibration.cpp.s:
+	$(MAKE) -f CMakeFiles/charuco_calibration.dir/build.make CMakeFiles/charuco_calibration.dir/charuco_calibration.cpp.s
+.PHONY : charuco_calibration.cpp.s
+
+edge.o: edge.cpp.o
+
+.PHONY : edge.o
+
+# target to build an object file
+edge.cpp.o:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/edge.cpp.o
+.PHONY : edge.cpp.o
+
+edge.i: edge.cpp.i
+
+.PHONY : edge.i
+
+# target to preprocess a source file
+edge.cpp.i:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/edge.cpp.i
+.PHONY : edge.cpp.i
+
+edge.s: edge.cpp.s
+
+.PHONY : edge.s
+
+# target to generate assembly for a file
+edge.cpp.s:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/edge.cpp.s
+.PHONY : edge.cpp.s
+
+graph.o: graph.cpp.o
+
+.PHONY : graph.o
+
+# target to build an object file
+graph.cpp.o:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/graph.cpp.o
+.PHONY : graph.cpp.o
+
+graph.i: graph.cpp.i
+
+.PHONY : graph.i
+
+# target to preprocess a source file
+graph.cpp.i:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/graph.cpp.i
+.PHONY : graph.cpp.i
+
+graph.s: graph.cpp.s
+
+.PHONY : graph.s
+
+# target to generate assembly for a file
+graph.cpp.s:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/graph.cpp.s
+.PHONY : graph.cpp.s
+
+marker.o: marker.cpp.o
+
+.PHONY : marker.o
+
+# target to build an object file
+marker.cpp.o:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/marker.cpp.o
+.PHONY : marker.cpp.o
+
+marker.i: marker.cpp.i
+
+.PHONY : marker.i
+
+# target to preprocess a source file
+marker.cpp.i:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/marker.cpp.i
+.PHONY : marker.cpp.i
+
+marker.s: marker.cpp.s
+
+.PHONY : marker.s
+
+# target to generate assembly for a file
+marker.cpp.s:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/marker.cpp.s
+.PHONY : marker.cpp.s
+
+robot.o: robot.cpp.o
+
+.PHONY : robot.o
+
+# target to build an object file
+robot.cpp.o:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/robot.cpp.o
+.PHONY : robot.cpp.o
+
+robot.i: robot.cpp.i
+
+.PHONY : robot.i
+
+# target to preprocess a source file
+robot.cpp.i:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/robot.cpp.i
+.PHONY : robot.cpp.i
+
+robot.s: robot.cpp.s
+
+.PHONY : robot.s
+
+# target to generate assembly for a file
+robot.cpp.s:
+	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/robot.cpp.s
+.PHONY : robot.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -158,10 +306,26 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
+	@echo "... charuco_calibration"
 	@echo "... main"
 	@echo "... atk_yolov5_object_recognize.o"
 	@echo "... atk_yolov5_object_recognize.i"
 	@echo "... atk_yolov5_object_recognize.s"
+	@echo "... charuco_calibration.o"
+	@echo "... charuco_calibration.i"
+	@echo "... charuco_calibration.s"
+	@echo "... edge.o"
+	@echo "... edge.i"
+	@echo "... edge.s"
+	@echo "... graph.o"
+	@echo "... graph.i"
+	@echo "... graph.s"
+	@echo "... marker.o"
+	@echo "... marker.i"
+	@echo "... marker.s"
+	@echo "... robot.o"
+	@echo "... robot.i"
+	@echo "... robot.s"
 .PHONY : help
 
 

@@ -67,10 +67,14 @@ include_directories(./include/3rdparty/rga/include)
 
 add_definitions(-DRKAIQ)
 
-add_executable(main atk_yolov5_object_recognize.cpp )
+add_executable(main atk_yolov5_object_recognize.cpp marker.cpp edge.cpp robot.cpp graph.cpp)
 target_link_libraries(main ${OPENCV_LIBS} ${RKNN_LIBS}  pthread dl     avformat
 avcodec
 avutil
 swscale
 swresample
 drm)
+
+# Calibration program
+add_executable(charuco_calibration charuco_calibration.cpp)
+target_link_libraries(charuco_calibration ${OPENCV_LIBS} ${RKNN_LIBS} pthread dl avformat avcodec avutil swscale swresample drm)

@@ -1,11 +1,12 @@
 // CharUco board calibration program
 // Detects CharUco board and saves camera calibration to file
 
-#include "atk_yolov5_object_recognize.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/aruco.hpp>
 #include <opencv2/aruco/charuco.hpp>
 #include <rga/im2d.h>
+#include <rga/RgaApi.h>
+#include <easymedia/rkmedia_api.h>
 #include <iostream>
 #include <vector>
 #include <ctime>
@@ -46,17 +47,15 @@ void *calibration_thread(void *args)
 {
     const char* outputFile = (const char*)args;
     
-    // Initialize ArUco dictionary and CharUco board
-    auto dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_50);
+    // Initialize ArUco dictionary and CharUco board (OpenCV 3.x/4.2 API)
+    cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_50);
     cv::Ptr<cv::aruco::DetectorParameters> detectorParams = cv::aruco::DetectorParameters::create();
-    cv::Ptr<cv::aruco::CharucoParameters> charucoParams = cv::aruco::CharucoParameters::create();
     
     detectorParams->adaptiveThreshWinSizeMin = 9;
     detectorParams->adaptiveThreshWinSizeMax = 23;
     detectorParams->adaptiveThreshWinSizeStep = 10;
     
-    cv::aruco::CharucoBoard board(Size(squaresX, squaresY), squareLength, markerLength, dictionary);
-    cv::aruco::CharucoDetector detector(board, charucoParams, detectorParams);
+    cv::Ptr<cv::aruco::CharucoBoard> board = cv::aruco::CharucoBoard::create(squaresX, squaresY, squareLength, markerLength, dictionary);
 
     int framesCaptured = 0;
 
@@ -82,13 +81,20 @@ void *calibration_thread(void *args)
             imageSize = orig_img.size();
         }
 
-        // Detect CharUco board
+        // Detect CharUco board (OpenCV 3.x/4.2 API)
+        vector<int> markerIds;
+        vector<vector<Point2f>> markerCorners;
+        cv::aruco::detectMarkers(orig_img, dictionary, markerCorners, markerIds, detectorParams);
+        
         vector<int> charucoIds;
         vector<Point2f> charucoCorners;
-        detector.detectBoard(orig_img, charucoCorners, charucoIds);
+        if (markerIds.size() > 0) {
+            cv::aruco::interpolateCornersCharuco(markerCorners, markerIds, orig_img, board, charucoCorners, charucoIds);
+        }
 
         // Draw detected corners
         if (!charucoIds.empty()) {
+            cv::aruco::drawDetectedMarkers(displayFrame, markerCorners, markerIds);
             cv::aruco::drawDetectedCornersCharuco(displayFrame, charucoCorners, charucoIds, Scalar(0, 255, 0));
             putText(displayFrame, "Board detected! Press 'c' to capture", 
                     Point(10, 30), FONT_HERSHEY_SIMPLEX, 0.8, Scalar(0, 255, 0), 2);
@@ -209,11 +215,11 @@ int main(int argc, char** argv)
     // Setup VI (Video Input)
     VI_CHN_ATTR_S vi_chn_attr;
     memset(&vi_chn_attr, 0, sizeof(vi_chn_attr));
-    vi_chn_attr.pcVideoNode = "/dev/video0";
+    vi_chn_attr.pcVideoNode = "/dev/video25";
     vi_chn_attr.u32BufCnt = u32BufCnt;
     vi_chn_attr.u32Width = video_width;
     vi_chn_attr.u32Height = video_height;
-    vi_chn_attr.enPixFmt = IMAGE_TYPE_UYVY422;
+    vi_chn_attr.enPixFmt = IMAGE_TYPE_YUYV422;
     vi_chn_attr.enBufType = VI_CHN_BUF_TYPE_MMAP;
     vi_chn_attr.enWorkMode = VI_WORK_MODE_NORMAL;
     RK_MPI_VI_SetChnAttr(0, 0, &vi_chn_attr);
@@ -227,7 +233,7 @@ int main(int argc, char** argv)
     stRgaAttr.u16Rotaion = 0;
     stRgaAttr.stImgIn.u32X = 0;
     stRgaAttr.stImgIn.u32Y = 0;
-    stRgaAttr.stImgIn.imgType = IMAGE_TYPE_UYVY422;
+    stRgaAttr.stImgIn.imgType = IMAGE_TYPE_YUYV422;
     stRgaAttr.stImgIn.u32Width = video_width;
     stRgaAttr.stImgIn.u32Height = video_height;
     stRgaAttr.stImgIn.u32HorStride = video_width;

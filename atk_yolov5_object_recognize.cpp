@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "atk_yolov5_object_recognize.h"
+#include "marker.h"
+#include "edge.h"
+#include "robot.h"
+#include "graph.h"
 #include <sys/types.h>
 #include <dirent.h>
 #include <thread>
@@ -31,17 +35,6 @@ using namespace std;
 
 // Global quit flag
 static volatile bool quit = false;
-
-// Special marker names mapping
-static const std::unordered_map<int, std::string> kSpecialNames = {
-  {0, "Origin"},
-  {1, "Marker_1"},
-  {2, "Marker_2"},
-  {3, "Marker_3"},
-  {4, "Marker_4"},
-  {5, "Marker_5"}
-  // Add more marker IDs and names as needed
-};
 
 // Camera calibration data structure
 struct CameraCalibration {
@@ -77,217 +70,61 @@ struct CameraCalibration {
 // Global camera calibration
 static CameraCalibration g_camCalib;
 
-// Forward declarations
-class Marker;
-class Edge;
-class Graph;
-
-class Edge
-{
-public:
-  Edge(int marker_a_id, int marker_b_id, double dist,
-       double theta_ab, double theta_ba, double phi);
-  Edge(const Edge &) = default;
-  Edge &operator=(const Edge &) = default;
-  ~Edge();
+double calculateYaw(const std::vector<cv::Point2f>& corners) {
+  // corners[0] = top-left, [1] = top-right, [2] = bottom-right, [3] = bottom-left
   
-  // Edge composition function M(E_ab, E_bc) -> E_ac
-  static Edge compose(const Edge& e_ab, const Edge& e_bc);
+  // s_a: average of horizontal edge lengths
+  double top_edge = cv::norm(corners[1] - corners[0]);
+  double bottom_edge = cv::norm(corners[2] - corners[3]);
+  double s_a = (top_edge + bottom_edge) / 2.0;
   
-  int getMarkerA() const { return a_id; }
-  int getMarkerB() const { return b_id; }
-  double getDistance() const { return distance; }
-  double getThetaAB() const { return theta_ab; }
-  double getThetaBA() const { return theta_ba; }
-  double getPhi() const { return phi; }
-
-private:
-  int a_id, b_id;
-  double distance;
-  double theta_ab;
-  double theta_ba;
-  double phi;
-};
-
-Edge::Edge(int marker_a_id, int marker_b_id, double dist,
-           double theta_ab_val, double theta_ba_val, double phi_val)
-  : a_id(marker_a_id), b_id(marker_b_id), distance(dist),
-    theta_ab(theta_ab_val), theta_ba(theta_ba_val), phi(phi_val)
-{
-}
-
-Edge::~Edge()
-{
-}
-
-// Implementation of M function for edge composition (multi-hop navigation)
-// From paper: E_ac = M(E_ab, E_bc)
-Edge Edge::compose(const Edge& e_ab, const Edge& e_bc)
-{
-  // φ_ac = φ_ab + φ_bc
-  double phi_ac = e_ab.phi + e_bc.phi;
+  // s_i: vertical edge lengths
+  double left_edge = cv::norm(corners[3] - corners[0]);
+  double right_edge = cv::norm(corners[2] - corners[1]);
+  double s_i = (left_edge + right_edge) / 2.0;
   
-  // θ_ac = θ_ab + θ_bc - φ_bc
-  double theta_ac = e_ab.theta_ab + e_bc.theta_ab - e_bc.phi;
+  // ψ_z = arccos(s_a / s_i)
+  double yaw = std::acos(std::min(1.0, s_a / s_i));
   
-  // θ_ca = -(θ_ab + θ_bc - φ_bc)
-  double theta_ca = -theta_ac;
-  
-  // d_ac = √(d_ab² + d_bc² - 2·d_ab·d_bc·cos(φ_bc))
-  double d_ac = std::sqrt(
-    e_ab.distance * e_ab.distance + 
-    e_bc.distance * e_bc.distance - 
-    2.0 * e_ab.distance * e_bc.distance * std::cos(e_bc.phi)
-  );
-  
-  return Edge(e_ab.a_id, e_bc.b_id, d_ac, theta_ac, theta_ca, phi_ac);
-}
-
-class Marker
-{
-public:
-  Marker();
-  Marker(int marker_id, const cv::Point2f& pos);
-  void addEdge(const Edge& edge);
-  const std::vector<Edge>& getEdges() const { return edges; }
-  int getId() const { return id; }
-  cv::Point2f getPosition() const { return position; }
-  double getTheta() const { return theta; }
-  void setPosition(const cv::Point2f& pos) { position = pos; }
-  void setTheta(double t) { theta = t; }
-  
-  // Pose estimation data
-  cv::Vec3d rvec;  // Rotation vector from solvePnP
-  cv::Vec3d tvec;  // Translation vector from solvePnP
-  
-  Marker(const Marker &) = default;
-  Marker &operator=(const Marker &) = default;
-  ~Marker();
-
-private:
-  int id;
-  double theta;
-  cv::Point2f position;
-  std::vector<Edge> edges;
-};
-
-Marker::Marker() : id(0), theta(0.0), position(0, 0)
-{
-}
-
-Marker::Marker(int marker_id, const cv::Point2f& pos)
-  : id(marker_id), theta(0.0), position(pos)
-{
-}
-
-void Marker::addEdge(const Edge& edge)
-{
-  edges.push_back(edge);
-}
-
-Marker::~Marker()
-{
-}
-
-class Graph
-{
-public:
-  Graph();
-  Graph(const Graph &) = default;
-  Graph &operator=(const Graph &) = default;
-  ~Graph();
-  
-  void addMarker(const Marker& marker);
-  void addEdge(const Edge& edge);
-  Marker* getMarker(int id);
-  const std::unordered_map<int, Marker>& getMarkers() const { return markers; }
-
-private:   
-  std::unordered_map<int, Marker> markers;  // O(1) lookup by ArUco ID
-  std::vector<Edge> edges;
-};
-
-Graph::Graph()
-{
-}
-
-Graph::~Graph()
-{
-}
-
-void Graph::addMarker(const Marker& marker)
-{
-  markers[marker.getId()] = marker;
-}
-
-void Graph::addEdge(const Edge& edge)
-{
-  edges.push_back(edge);
-  
-  // Add edge to both markers' adjacency lists
-  auto it_a = markers.find(edge.getMarkerA());
-  auto it_b = markers.find(edge.getMarkerB());
-  
-  if (it_a != markers.end()) {
-    it_a->second.addEdge(edge);
+  // Determine sign based on horizontal skew
+  if (top_edge > bottom_edge) {
+    yaw = -yaw;
   }
-  if (it_b != markers.end()) {
-    // Create reverse edge for marker B
-    Edge reverse(edge.getMarkerB(), edge.getMarkerA(), 
-                 edge.getDistance(), edge.getThetaBA(), 
-                 edge.getThetaAB(), -edge.getPhi());
-    it_b->second.addEdge(reverse);
-  }
+  
+  return yaw;
 }
 
-Marker* Graph::getMarker(int id)
-{
-  auto it = markers.find(id);
-  return (it != markers.end()) ? &(it->second) : nullptr;
-}
-
-// Improved yaw calculation from paper equations
-double findyaw(const std::vector<cv::Point2f>& corners)
-{
-  // sa = average of top and bottom edge lengths
-  double top_edge = cv::norm(corners[0] - corners[1]);
-  double bottom_edge = cv::norm(corners[3] - corners[2]);
-  double sa = (top_edge + bottom_edge) / 2.0;
-  
-  // si1 and si2 = left and right edge lengths
-  double si1 = cv::norm(corners[0] - corners[3]);
-  double si2 = cv::norm(corners[1] - corners[2]);
-  
-  // yaw = arcsin(sa / si)
-  double yaw = std::asin(sa / si1);
-  
-  // Determine sign based on which side is shorter
-  return (si1 < si2) ? yaw : -yaw;
-}
-
-// Calculate spatial relationship between two markers
-Edge calculateEdge(const Marker& marker_a, const Marker& marker_b)
-{
+// Calculate spatial edge between two markers using Law of Cosines
+Edge calculateEdgeBetweenMarkers(const Marker& marker_a,
+                                  const Marker& marker_b,
+                                  double distance_ab) {
   cv::Point2f pos_a = marker_a.getPosition();
   cv::Point2f pos_b = marker_b.getPosition();
   
-  // Distance: Euclidean distance
-  double d_ab = cv::norm(pos_b - pos_a);
-  
-  // Phase difference: φ = arctan(Δy/Δx)
+  // Phase angle: φ_ab = atan2(Δy, Δx)
   double delta_x = pos_b.x - pos_a.x;
   double delta_y = pos_b.y - pos_a.y;
   double phi_ab = std::atan2(delta_y, delta_x);
   
-  // Angular differences (simplified - would use actual rotation data)
-  double theta_ab = marker_a.getTheta();
-  double theta_ba = marker_b.getTheta();
+  // Angular differences from Law of Cosines
+  // θ_ab = arccos((d_a² + d_ab² - d_b²) / (2·d_a·d_ab))
+  double d_a = marker_a.getDistance();
+  double d_b = marker_b.getDistance();
   
-  return Edge(marker_a.getId(), marker_b.getId(), d_ab, theta_ab, theta_ba, phi_ab);
+  double numerator_ab = d_a*d_a + distance_ab*distance_ab - d_b*d_b;
+  double denominator_ab = 2.0 * d_a * distance_ab;
+  double theta_ab = std::acos(numerator_ab / denominator_ab);
+  
+  double numerator_ba = d_b*d_b + distance_ab*distance_ab - d_a*d_a;
+  double denominator_ba = 2.0 * d_b * distance_ab;
+  double theta_ba = std::acos(numerator_ba / denominator_ba);
+  
+  return Edge(marker_a.getId(), marker_b.getId(), 
+              distance_ab, theta_ab, theta_ba, phi_ab);
 }
 
-RK_U32 video_width = 1280;
-RK_U32 video_height = 720;
+RK_U32 video_width = 640;
+RK_U32 video_height = 480;
 RK_U32 shrunken_width = 640;
 RK_U32 shrunken_height = 360;
 static int disp_width = 1920;
@@ -410,20 +247,10 @@ void *rkmedia_rknn_thread(void *args)
         center *= (1.0f / scaledPts.size());
 
         // Create and add marker to the graph
-        
-        Marker marker(ids[k], center);
-        markerGraph.addMarker(marker);
 
-        auto it = kSpecialNames.find(ids[k]);
-        if (it == kSpecialNames.end()) {
-          wrongCorners.push_back(std::move(scaledPts));
-          wrongIds.push_back(ids[k]);
-          wrongLabels.emplace_back(cv::format("Wrong_ID_%d", ids[k]));
-        } else {
-          correctCorners.push_back(std::move(scaledPts));
-          correctIds.push_back(ids[k]);
-          correctLabels.emplace_back(it->second);
-        }
+        markerGraph.addMarker(Marker(ids[k], center));
+        
+
       }
     }
 
@@ -482,11 +309,11 @@ int main(int argc, char *argv[])
 
   VI_CHN_ATTR_S vi_chn_attr_01;
   memset(&vi_chn_attr_01, 0, sizeof(vi_chn_attr_01));
-  vi_chn_attr_01.pcVideoNode = "/dev/video0";
+  vi_chn_attr_01.pcVideoNode = "/dev/video25";
   vi_chn_attr_01.u32BufCnt = u32BufCnt;
   vi_chn_attr_01.u32Width = video_width;
   vi_chn_attr_01.u32Height = video_height;
-  vi_chn_attr_01.enPixFmt = IMAGE_TYPE_UYVY422;
+  vi_chn_attr_01.enPixFmt = IMAGE_TYPE_YUYV422;
   vi_chn_attr_01.enBufType = VI_CHN_BUF_TYPE_MMAP;
   vi_chn_attr_01.enWorkMode = VI_WORK_MODE_NORMAL;
   RK_MPI_VI_SetChnAttr(0, 0, &vi_chn_attr_01); // 设置第一个摄像头
@@ -499,7 +326,7 @@ int main(int argc, char *argv[])
   stRgaAttr_01.u16Rotaion = 0;
   stRgaAttr_01.stImgIn.u32X = 0;
   stRgaAttr_01.stImgIn.u32Y = 0;
-  stRgaAttr_01.stImgIn.imgType = IMAGE_TYPE_UYVY422;
+  stRgaAttr_01.stImgIn.imgType = IMAGE_TYPE_YUYV422;
   stRgaAttr_01.stImgIn.u32Width = video_width;
   stRgaAttr_01.stImgIn.u32Height = video_height;
   stRgaAttr_01.stImgIn.u32HorStride = video_width;
